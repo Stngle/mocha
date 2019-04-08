@@ -1,8 +1,10 @@
 'use strict';
 
-var mocha = require('../../lib/mocha');
-var Suite = mocha.Suite;
-var Test = mocha.Test;
+var Mocha = require('../../lib/mocha');
+var Suite = Mocha.Suite;
+var Test = Mocha.Test;
+var sinon = require('sinon');
+var utils = Mocha.utils;
 
 function supportsFunctionNames() {
   // eslint-disable-next-line no-extra-parens
@@ -10,9 +12,18 @@ function supportsFunctionNames() {
 }
 
 describe('Suite', function() {
+  var sandbox;
+  beforeEach(function() {
+    sandbox = sinon.createSandbox();
+  });
+
+  afterEach(function() {
+    sandbox.restore();
+  });
+
   describe('.clone()', function() {
     beforeEach(function() {
-      this.suite = new Suite('To be cloned');
+      this.suite = new Suite('To be cloned', {}, true);
       this.suite._timeout = 3043;
       this.suite._slow = 101;
       this.suite._bail = true;
@@ -62,6 +73,10 @@ describe('Suite', function() {
 
     it('should not copy the values from the _afterAll array', function() {
       expect(this.suite.clone()._afterAll, 'to be empty');
+    });
+
+    it('should copy the root property', function() {
+      expect(this.suite.clone().root, 'to be', true);
     });
   });
 
@@ -210,27 +225,29 @@ describe('Suite', function() {
   });
 
   describe('.beforeEach()', function() {
+    var suite;
+
     beforeEach(function() {
-      this.suite = new Suite('A Suite');
+      suite = new Suite('A Suite');
     });
 
     describe('wraps the passed in function in a Hook', function() {
       it('adds it to _beforeEach', function() {
         var fn = function() {};
-        this.suite.beforeEach(fn);
+        suite.beforeEach(fn);
 
-        expect(this.suite._beforeEach, 'to have length', 1);
-        var beforeEachItem = this.suite._beforeEach[0];
+        expect(suite._beforeEach, 'to have length', 1);
+        var beforeEachItem = suite._beforeEach[0];
         expect(beforeEachItem.title, 'to match', /^"before each" hook/);
         expect(beforeEachItem.fn, 'to be', fn);
       });
 
       it('appends title to hook', function() {
         var fn = function() {};
-        this.suite.beforeEach('test', fn);
+        suite.beforeEach('test', fn);
 
-        expect(this.suite._beforeEach, 'to have length', 1);
-        var beforeAllItem = this.suite._beforeEach[0];
+        expect(suite._beforeEach, 'to have length', 1);
+        var beforeAllItem = suite._beforeEach[0];
         expect(beforeAllItem.title, 'to be', '"before each" hook: test');
         expect(beforeAllItem.fn, 'to be', fn);
       });
@@ -241,10 +258,21 @@ describe('Suite', function() {
           return;
         }
         function namedFn() {}
-        this.suite.beforeEach(namedFn);
-        var beforeEachItem = this.suite._beforeEach[0];
+        suite.beforeEach(namedFn);
+        var beforeEachItem = suite._beforeEach[0];
         expect(beforeEachItem.title, 'to be', '"before each" hook: namedFn');
         expect(beforeEachItem.fn, 'to be', namedFn);
+      });
+    });
+
+    describe('when the suite is pending', function() {
+      beforeEach(function() {
+        suite.pending = true;
+      });
+
+      it('should not create a hook', function() {
+        suite.beforeEach(function() {});
+        expect(suite._beforeEach, 'to be empty');
       });
     });
   });
@@ -286,6 +314,27 @@ describe('Suite', function() {
         expect(afterEachItem.title, 'to be', '"after each" hook: namedFn');
         expect(afterEachItem.fn, 'to be', namedFn);
       });
+    });
+  });
+
+  describe('.create()', function() {
+    before(function() {
+      this.first = new Suite('Root suite', {}, true);
+      this.second = new Suite('RottenRoot suite', {}, true);
+      this.first.addSuite(this.second);
+    });
+
+    it('does not create a second root suite', function() {
+      expect(this.second.parent, 'to be', this.first);
+      expect(this.first.root, 'to be', true);
+      expect(this.second.root, 'to be', false);
+    });
+
+    it('does not denote the root suite by being titleless', function() {
+      var emptyTitleSuite = Suite.create(this.second, '');
+      expect(emptyTitleSuite.parent, 'to be', this.second);
+      expect(emptyTitleSuite.root, 'to be', false);
+      expect(this.second.root, 'to be', false);
     });
   });
 
@@ -377,8 +426,8 @@ describe('Suite', function() {
     describe('when there is a parent', function() {
       describe('the parent is the root suite', function() {
         it('returns the suite title', function() {
-          var parentSuite = new Suite('');
-          parentSuite.addSuite(this.suite);
+          var rootSuite = new Suite('', {}, true);
+          rootSuite.addSuite(this.suite);
           expect(this.suite.titlePath(), 'to equal', ['A Suite']);
         });
       });
@@ -463,7 +512,11 @@ describe('Suite', function() {
     });
   });
 
-  describe('initialization', function() {
+  describe('constructor', function() {
+    beforeEach(function() {
+      sandbox.stub(utils, 'deprecate');
+    });
+
     /* eslint no-new: off */
     it("should throw an error if the title isn't a string", function() {
       expect(function() {
@@ -479,6 +532,110 @@ describe('Suite', function() {
       expect(function() {
         new Suite('Bdd suite', 'root');
       }, 'not to throw');
+    });
+
+    it('should report listened-for deprecated events as deprecated', function() {
+      new Suite('foo').on(Suite.constants.EVENT_SUITE_ADD_TEST, function() {});
+      expect(utils.deprecate, 'to have all calls satisfying', [
+        /Event "[^"]+" is deprecated/i
+      ]);
+    });
+  });
+
+  describe('timeout()', function() {
+    it('should convert a string to milliseconds', function() {
+      var suite = new Suite('some suite');
+      suite.timeout('100');
+      expect(suite.timeout(), 'to be', 100);
+    });
+  });
+
+  describe('hasOnly()', function() {
+    it('should return true if a test has `only`', function() {
+      var suite = new Suite('foo');
+      var test = new Test('bar');
+
+      suite.appendOnlyTest(test);
+
+      expect(suite.hasOnly(), 'to be', true);
+    });
+
+    it('should return true if a suite has `only`', function() {
+      var suite = new Suite('foo');
+      var nested = new Suite('bar');
+
+      suite.appendOnlySuite(nested);
+
+      expect(suite.hasOnly(), 'to be', true);
+    });
+
+    it('should return true if nested suite has `only`', function() {
+      var suite = new Suite('foo');
+      var nested = new Suite('bar');
+      var test = new Test('baz');
+
+      nested.appendOnlyTest(test);
+      // `nested` has a `only` test, but `suite` doesn't know about it
+      suite.suites.push(nested);
+
+      expect(suite.hasOnly(), 'to be', true);
+    });
+
+    it('should return false if no suite or test is marked `only`', function() {
+      var suite = new Suite('foo');
+      var nested = new Suite('bar');
+      var test = new Test('baz');
+
+      suite.suites.push(nested);
+      nested.tests.push(test);
+
+      expect(suite.hasOnly(), 'to be', false);
+    });
+  });
+
+  describe('.filterOnly()', function() {
+    it('should filter out all other tests and suites if a test has `only`', function() {
+      var suite = new Suite('a');
+      var nested = new Suite('b');
+      var test = new Test('c');
+      var test2 = new Test('d');
+
+      suite.suites.push(nested);
+      suite.appendOnlyTest(test);
+      suite.tests.push(test2);
+
+      suite.filterOnly();
+
+      expect(suite, 'to satisfy', {
+        suites: expect.it('to be empty'),
+        tests: expect
+          .it('to have length', 1)
+          .and('to have an item satisfying', {title: 'c'})
+      });
+    });
+
+    it('should filter out all other tests and suites if a suite has `only`', function() {
+      var suite = new Suite('a');
+      var nested1 = new Suite('b');
+      var nested2 = new Suite('c');
+      var test = new Test('d');
+      var nestedTest = new Test('e');
+
+      nested1.appendOnlyTest(nestedTest);
+
+      suite.tests.push(test);
+      suite.suites.push(nested1);
+      suite.appendOnlySuite(nested1);
+      suite.suites.push(nested2);
+
+      suite.filterOnly();
+
+      expect(suite, 'to satisfy', {
+        suites: expect
+          .it('to have length', 1)
+          .and('to have an item satisfying', {title: 'b'}),
+        tests: expect.it('to be empty')
+      });
     });
   });
 });

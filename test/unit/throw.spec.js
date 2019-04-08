@@ -2,9 +2,13 @@
 
 /* eslint no-throw-literal: off */
 
-var Suite = require('../../lib/suite');
-var Test = require('../../lib/test');
-var Runner = require('../../lib/runner');
+var Mocha = require('../../lib/mocha');
+var Suite = Mocha.Suite;
+var Test = Mocha.Test;
+var Runnable = Mocha.Runnable;
+var Runner = Mocha.Runner;
+var EVENT_RUN_END = Runner.constants.EVENT_RUN_END;
+var STATE_FAILED = Runnable.constants.STATE_FAILED;
 
 describe('a test that throws', function() {
   var suite;
@@ -26,6 +30,52 @@ describe('a test that throws', function() {
     });
   });
 
+  describe('non-extensible', function() {
+    it('should not pass if throwing sync and test is sync', function(done) {
+      var test = new Test('im sync and throw string sync', function() {
+        throw 'non-extensible';
+      });
+      suite.addTest(test);
+      runner = new Runner(suite);
+      runner.on(EVENT_RUN_END, function() {
+        expect(runner.failures, 'to be', 1);
+        expect(test.state, 'to be', STATE_FAILED);
+        done();
+      });
+      runner.run();
+    });
+
+    it('should not pass if throwing sync and test is async', function(done) {
+      var test = new Test('im async and throw string sync', function(done2) {
+        throw 'non-extensible';
+      });
+      suite.addTest(test);
+      runner = new Runner(suite);
+      runner.on(EVENT_RUN_END, function() {
+        expect(runner.failures, 'to be', 1);
+        expect(test.state, 'to be', STATE_FAILED);
+        done();
+      });
+      runner.run();
+    });
+
+    it('should not pass if throwing async and test is async', function(done) {
+      var test = new Test('im async and throw string async', function(done2) {
+        process.nextTick(function() {
+          throw 'non-extensible';
+        });
+      });
+      suite.addTest(test);
+      runner = new Runner(suite);
+      runner.on(EVENT_RUN_END, function() {
+        expect(runner.failures, 'to be', 1);
+        expect(test.state, 'to be', STATE_FAILED);
+        done();
+      });
+      runner.run();
+    });
+  });
+
   describe('undefined', function() {
     it('should not pass if throwing sync and test is sync', function(done) {
       var test = new Test('im sync and throw undefined sync', function() {
@@ -33,9 +83,9 @@ describe('a test that throws', function() {
       });
       suite.addTest(test);
       runner = new Runner(suite);
-      runner.on('end', function() {
+      runner.on(EVENT_RUN_END, function() {
         expect(runner.failures, 'to be', 1);
-        expect(test.state, 'to be', 'failed');
+        expect(test.state, 'to be', STATE_FAILED);
         done();
       });
       runner.run();
@@ -47,9 +97,9 @@ describe('a test that throws', function() {
       });
       suite.addTest(test);
       runner = new Runner(suite);
-      runner.on('end', function() {
+      runner.on(EVENT_RUN_END, function() {
         expect(runner.failures, 'to be', 1);
-        expect(test.state, 'to be', 'failed');
+        expect(test.state, 'to be', STATE_FAILED);
         done();
       });
       runner.run();
@@ -65,9 +115,9 @@ describe('a test that throws', function() {
       });
       suite.addTest(test);
       runner = new Runner(suite);
-      runner.on('end', function() {
+      runner.on(EVENT_RUN_END, function() {
         expect(runner.failures, 'to be', 1);
-        expect(test.state, 'to be', 'failed');
+        expect(test.state, 'to be', STATE_FAILED);
         done();
       });
       runner.run();
@@ -81,9 +131,9 @@ describe('a test that throws', function() {
       });
       suite.addTest(test);
       runner = new Runner(suite);
-      runner.on('end', function() {
+      runner.on(EVENT_RUN_END, function() {
         expect(runner.failures, 'to be', 1);
-        expect(test.state, 'to be', 'failed');
+        expect(test.state, 'to be', STATE_FAILED);
         done();
       });
       runner.run();
@@ -95,9 +145,9 @@ describe('a test that throws', function() {
       });
       suite.addTest(test);
       runner = new Runner(suite);
-      runner.on('end', function() {
+      runner.on(EVENT_RUN_END, function() {
         expect(runner.failures, 'to be', 1);
-        expect(test.state, 'to be', 'failed');
+        expect(test.state, 'to be', STATE_FAILED);
         done();
       });
       runner.run();
@@ -111,9 +161,9 @@ describe('a test that throws', function() {
       });
       suite.addTest(test);
       runner = new Runner(suite);
-      runner.on('end', function() {
+      runner.on(EVENT_RUN_END, function() {
         expect(runner.failures, 'to be', 1);
-        expect(test.state, 'to be', 'failed');
+        expect(test.state, 'to be', STATE_FAILED);
         done();
       });
       runner.run();

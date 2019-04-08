@@ -2,6 +2,8 @@
 
 var assert = require('assert');
 var run = require('./helpers').runMochaJSON;
+var runMocha = require('./helpers').runMocha;
+var splitRegExp = require('./helpers').splitRegExp;
 var args = [];
 
 describe('pending', function() {
@@ -12,10 +14,10 @@ describe('pending', function() {
           done(err);
           return;
         }
-        assert.equal(res.stats.pending, 1);
-        assert.equal(res.stats.passes, 0);
-        assert.equal(res.stats.failures, 0);
-        assert.equal(res.code, 0);
+        assert.strictEqual(res.stats.pending, 1);
+        assert.strictEqual(res.stats.passes, 0);
+        assert.strictEqual(res.stats.failures, 0);
+        assert.strictEqual(res.code, 0);
         done();
       });
     });
@@ -25,10 +27,10 @@ describe('pending', function() {
           done(err);
           return;
         }
-        assert.equal(res.stats.pending, 3);
-        assert.equal(res.stats.passes, 0);
-        assert.equal(res.stats.failures, 0);
-        assert.equal(res.code, 0);
+        assert.strictEqual(res.stats.pending, 3);
+        assert.strictEqual(res.stats.passes, 0);
+        assert.strictEqual(res.stats.failures, 0);
+        assert.strictEqual(res.code, 0);
         done();
       });
     });
@@ -38,12 +40,15 @@ describe('pending', function() {
           done(err);
           return;
         }
-        assert.equal(res.stats.suites, 2);
-        assert.equal(res.stats.pending, 0);
-        assert.equal(res.stats.passes, 1);
-        assert.equal(res.stats.failures, 0);
-        assert.equal(res.code, 0);
-        assert.equal(res.passes[0].fullTitle, 'a suite another suite a test');
+        assert.strictEqual(res.stats.suites, 2);
+        assert.strictEqual(res.stats.pending, 0);
+        assert.strictEqual(res.stats.passes, 1);
+        assert.strictEqual(res.stats.failures, 0);
+        assert.strictEqual(res.code, 0);
+        assert.strictEqual(
+          res.passes[0].fullTitle,
+          'a suite another suite a test'
+        );
         done();
       });
     });
@@ -57,12 +62,34 @@ describe('pending', function() {
             done(err);
             return;
           }
-          assert.equal(res.stats.pending, 1);
-          assert.equal(res.stats.passes, 1);
-          assert.equal(res.stats.failures, 0);
-          assert.equal(res.code, 0);
+          assert.strictEqual(res.stats.pending, 1);
+          assert.strictEqual(res.stats.passes, 1);
+          assert.strictEqual(res.stats.failures, 0);
+          assert.strictEqual(res.code, 0);
           done();
         });
+      });
+    });
+
+    describe('in after', function() {
+      it('should run all tests', function(done) {
+        runMocha(
+          'pending/skip-sync-after.fixture.js',
+          args,
+          function(err, res) {
+            if (err) {
+              return done(err);
+            }
+            expect(res, 'to have passed').and('to satisfy', {
+              passing: 3,
+              failing: 0,
+              pending: 0,
+              output: expect.it('to contain', '"after all" hook is DEPRECATED')
+            });
+            done();
+          },
+          'pipe'
+        );
       });
     });
 
@@ -73,10 +100,68 @@ describe('pending', function() {
             done(err);
             return;
           }
-          assert.equal(res.stats.pending, 2);
-          assert.equal(res.stats.passes, 0);
-          assert.equal(res.stats.failures, 0);
-          assert.equal(res.code, 0);
+          assert.strictEqual(res.stats.pending, 2);
+          assert.strictEqual(res.stats.passes, 2);
+          assert.strictEqual(res.stats.failures, 0);
+          assert.strictEqual(res.code, 0);
+          done();
+        });
+      });
+      it('should run before and after hooks', function(done) {
+        runMocha(
+          'pending/skip-sync-before-hooks.fixture.js',
+          args.concat(['--reporter', 'dot']),
+          function(err, res) {
+            if (err) {
+              done(err);
+              return;
+            }
+
+            var lines = res.output
+              .split(splitRegExp)
+              .map(function(line) {
+                return line.trim();
+              })
+              .filter(function(line) {
+                return line.length;
+              })
+              .slice(0, -1);
+
+            var expected = [
+              'outer before',
+              'inner before',
+              'inner after',
+              'outer after'
+            ];
+
+            assert.strictEqual(res.pending, 2);
+            assert.strictEqual(res.passing, 2);
+            assert.strictEqual(res.failing, 0);
+            assert.strictEqual(res.code, 0);
+            expected.forEach(function(line, i) {
+              assert.strictEqual(true, lines[i].includes(line));
+            });
+
+            done();
+          }
+        );
+      });
+    });
+
+    describe('in before with nested describe', function() {
+      it('should skip all suite specs, even if nested', function(done) {
+        run('pending/skip-sync-before-nested.fixture.js', args, function(
+          err,
+          res
+        ) {
+          if (err) {
+            done(err);
+            return;
+          }
+          assert.strictEqual(res.stats.pending, 3);
+          assert.strictEqual(res.stats.passes, 0);
+          assert.strictEqual(res.stats.failures, 0);
+          assert.strictEqual(res.code, 0);
           done();
         });
       });
@@ -92,10 +177,10 @@ describe('pending', function() {
             done(err);
             return;
           }
-          assert.equal(res.stats.pending, 2);
-          assert.equal(res.stats.passes, 0);
-          assert.equal(res.stats.failures, 0);
-          assert.equal(res.code, 0);
+          assert.strictEqual(res.stats.pending, 2);
+          assert.strictEqual(res.stats.passes, 0);
+          assert.strictEqual(res.stats.failures, 0);
+          assert.strictEqual(res.code, 0);
           done();
         });
       });
@@ -110,10 +195,10 @@ describe('pending', function() {
             done(err);
             return;
           }
-          assert.equal(res.stats.pending, 1);
-          assert.equal(res.stats.passes, 1);
-          assert.equal(res.stats.failures, 0);
-          assert.equal(res.code, 0);
+          assert.strictEqual(res.stats.pending, 1);
+          assert.strictEqual(res.stats.passes, 1);
+          assert.strictEqual(res.stats.failures, 0);
+          assert.strictEqual(res.code, 0);
           done();
         });
       });
@@ -126,18 +211,57 @@ describe('pending', function() {
             done(err);
             return;
           }
-          assert.equal(res.stats.pending, 2);
-          assert.equal(res.stats.passes, 0);
-          assert.equal(res.stats.failures, 0);
-          assert.equal(res.code, 0);
+          assert.strictEqual(res.stats.pending, 2);
+          assert.strictEqual(res.stats.passes, 2);
+          assert.strictEqual(res.stats.failures, 0);
+          assert.strictEqual(res.code, 0);
           done();
         });
       });
+      it('should run before and after hooks', function(done) {
+        runMocha(
+          'pending/skip-async-before-hooks.fixture.js',
+          args.concat(['--reporter', 'dot']),
+          function(err, res) {
+            if (err) {
+              done(err);
+              return;
+            }
+
+            var lines = res.output
+              .split(splitRegExp)
+              .map(function(line) {
+                return line.trim();
+              })
+              .filter(function(line) {
+                return line.length;
+              })
+              .slice(0, -1);
+
+            var expected = [
+              'outer before',
+              'inner before',
+              'inner after',
+              'outer after'
+            ];
+
+            assert.strictEqual(res.pending, 2);
+            assert.strictEqual(res.passing, 2);
+            assert.strictEqual(res.failing, 0);
+            assert.strictEqual(res.code, 0);
+            expected.forEach(function(line, i) {
+              assert.strictEqual(true, lines[i].includes(line));
+            });
+
+            done();
+          }
+        );
+      });
     });
 
-    describe('in beforeEach', function() {
-      it('should skip all suite specs', function(done) {
-        run('pending/skip-sync-beforeEach.fixture.js', args, function(
+    describe('in before with nested describe', function() {
+      it('should skip all suite specs, even if nested', function(done) {
+        run('pending/skip-async-before-nested.fixture.js', args, function(
           err,
           res
         ) {
@@ -145,10 +269,32 @@ describe('pending', function() {
             done(err);
             return;
           }
-          assert.equal(res.stats.pending, 2);
-          assert.equal(res.stats.passes, 0);
-          assert.equal(res.stats.failures, 0);
-          assert.equal(res.code, 0);
+          assert.strictEqual(res.stats.pending, 3);
+          assert.strictEqual(res.stats.passes, 0);
+          assert.strictEqual(res.stats.failures, 0);
+          assert.strictEqual(res.code, 0);
+          done();
+        });
+      });
+    });
+
+    describe('in beforeEach', function() {
+      it('should skip all suite specs', function(done) {
+        var fixture = 'pending/skip-async-beforeEach.fixture.js';
+        run(fixture, args, function(err, res) {
+          if (err) {
+            return done(err);
+          }
+          expect(res, 'to have passed')
+            .and('to have passed test count', 0)
+            .and('to have pending test count', 3)
+            .and(
+              'to have pending test order',
+              'should skip this test-1',
+              'should skip this test-2',
+              'should skip this test-3'
+            )
+            .and('to have failed test count', 0);
           done();
         });
       });

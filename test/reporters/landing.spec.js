@@ -1,15 +1,20 @@
 'use strict';
 
-var reporters = require('../../').reporters;
+var Mocha = require('../..');
+var reporters = Mocha.reporters;
 var Landing = reporters.Landing;
+var constants = Mocha.Runnable.constants;
+var STATE_FAILED = constants.STATE_FAILED;
+var STATE_PASSED = constants.STATE_PASSED;
 var Base = reporters.Base;
 
 var createMockRunner = require('./helpers').createMockRunner;
+var makeRunReporter = require('./helpers.js').createRunReporterFunction;
 
 describe('Landing reporter', function() {
-  var stdout;
-  var stdoutWrite;
   var runner;
+  var options = {};
+  var runReporter = makeRunReporter(Landing);
   var useColors;
   var windowWidth;
   var resetCode = '\u001b[0m';
@@ -25,12 +30,6 @@ describe('Landing reporter', function() {
   ];
 
   beforeEach(function() {
-    stdout = [];
-    stdoutWrite = process.stdout.write;
-    process.stdout.write = function(string, enc, callback) {
-      stdout.push(string);
-      stdoutWrite.call(process.stdout, string, enc, callback);
-    };
     useColors = Base.useColors;
     Base.useColors = false;
     windowWidth = Base.window.width;
@@ -40,7 +39,7 @@ describe('Landing reporter', function() {
   afterEach(function() {
     Base.useColors = useColors;
     Base.window.width = windowWidth;
-    process.stdout.write = stdoutWrite;
+    runner = undefined;
   });
 
   describe('on start', function() {
@@ -48,9 +47,7 @@ describe('Landing reporter', function() {
       var cachedCursor = Base.cursor;
       Base.cursor.hide = function() {};
       runner = createMockRunner('start', 'start');
-      Landing.call({}, runner);
-
-      process.stdout.write = stdoutWrite;
+      var stdout = runReporter({}, runner, options);
 
       expect(stdout[0], 'to equal', '\n\n\n  ');
       Base.cursor = cachedCursor;
@@ -63,9 +60,7 @@ describe('Landing reporter', function() {
         calledCursorHide = true;
       };
       runner = createMockRunner('start', 'start');
-      Landing.call({}, runner);
-
-      process.stdout.write = stdoutWrite;
+      runReporter({}, runner, options);
       expect(calledCursorHide, 'to be', true);
 
       Base.cursor = cachedCursor;
@@ -76,13 +71,11 @@ describe('Landing reporter', function() {
     describe('if test has failed', function() {
       it('should write expected landing strip', function() {
         var test = {
-          state: 'failed'
+          state: STATE_FAILED
         };
         runner = createMockRunner('test end', 'test end', null, null, test);
         runner.total = 12;
-        Landing.call({}, runner);
-
-        process.stdout.write = stdoutWrite;
+        var stdout = runReporter({}, runner, options);
 
         expect(stdout, 'to equal', expectedArray);
       });
@@ -90,13 +83,11 @@ describe('Landing reporter', function() {
     describe('if test has not failed', function() {
       it('should write expected landing strip', function() {
         var test = {
-          state: 'success'
+          state: STATE_PASSED
         };
         runner = createMockRunner('test end', 'test end', null, null, test);
 
-        Landing.call({}, runner);
-
-        process.stdout.write = stdoutWrite;
+        var stdout = runReporter({}, runner, options);
 
         expect(stdout, 'to equal', expectedArray);
       });
@@ -112,16 +103,16 @@ describe('Landing reporter', function() {
       runner = createMockRunner('end', 'end');
 
       var calledEpilogue = false;
-      Landing.call(
+      runReporter(
         {
           epilogue: function() {
             calledEpilogue = true;
           }
         },
-        runner
+        runner,
+        options
       );
 
-      process.stdout.write = stdoutWrite;
       expect(calledEpilogue, 'to be', true);
       expect(calledCursorShow, 'to be', true);
 

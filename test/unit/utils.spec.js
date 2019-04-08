@@ -1,8 +1,19 @@
 'use strict';
 
 var utils = require('../../lib/utils');
+var sinon = require('sinon');
 
 describe('lib/utils', function() {
+  var sandbox;
+
+  beforeEach(function() {
+    sandbox = sinon.createSandbox();
+  });
+
+  afterEach(function() {
+    sandbox.restore();
+  });
+
   describe('clean', function() {
     it('should remove the wrapping function declaration', function() {
       expect(
@@ -591,6 +602,10 @@ describe('lib/utils', function() {
     it('should return false if the value is an object w/o a "then" function', function() {
       expect(utils.isPromise({}), 'to be', false);
     });
+
+    it('should return false if the object is null', function() {
+      expect(utils.isPromise(null), 'to be', false);
+    });
   });
 
   describe('escape', function() {
@@ -612,6 +627,141 @@ describe('lib/utils', function() {
       );
       // Ensure we can handle non-trivial unicode characters as well
       expect(utils.escape('💩'), 'to be', '&#x1F4A9;');
+    });
+  });
+
+  describe('deprecate', function() {
+    var emitWarning;
+
+    beforeEach(function() {
+      if (process.emitWarning) {
+        emitWarning = process.emitWarning;
+        sandbox.stub(process, 'emitWarning');
+      } else {
+        process.emitWarning = sandbox.spy();
+      }
+      utils.deprecate.cache = {};
+    });
+
+    afterEach(function() {
+      // if this is not set, then we created it, so we should remove it.
+      if (!emitWarning) {
+        delete process.emitWarning;
+      }
+    });
+
+    it('should coerce its parameter to a string', function() {
+      utils.deprecate(1);
+      expect(process.emitWarning, 'to have a call satisfying', [
+        '1',
+        'DeprecationWarning'
+      ]);
+    });
+
+    it('should cache the message', function() {
+      utils.deprecate('foo');
+      utils.deprecate('foo');
+      expect(process.emitWarning, 'was called times', 1);
+    });
+
+    it('should ignore falsy messages', function() {
+      utils.deprecate('');
+      expect(process.emitWarning, 'was not called');
+    });
+  });
+
+  describe('warn', function() {
+    var emitWarning;
+
+    beforeEach(function() {
+      if (process.emitWarning) {
+        emitWarning = process.emitWarning;
+        sandbox.stub(process, 'emitWarning');
+      } else {
+        process.emitWarning = sandbox.spy();
+      }
+    });
+
+    afterEach(function() {
+      // if this is not set, then we created it, so we should remove it.
+      if (!emitWarning) {
+        delete process.emitWarning;
+      }
+    });
+
+    it('should call process.emitWarning', function() {
+      utils.warn('foo');
+      expect(process.emitWarning, 'was called times', 1);
+    });
+
+    it('should not cache messages', function() {
+      utils.warn('foo');
+      utils.warn('foo');
+      expect(process.emitWarning, 'was called times', 2);
+    });
+
+    it('should ignore falsy messages', function() {
+      utils.warn('');
+      expect(process.emitWarning, 'was not called');
+    });
+  });
+
+  describe('sQuote/dQuote', function() {
+    var str = 'xxx';
+
+    it('should return its input as string wrapped in single quotes', function() {
+      var expected = "'xxx'";
+      expect(utils.sQuote(str), 'to be', expected);
+    });
+
+    it('should return its input as string wrapped in double quotes', function() {
+      var expected = '"xxx"';
+      expect(utils.dQuote(str), 'to be', expected);
+    });
+  });
+
+  describe('ngettext', function() {
+    var singular = 'singular';
+    var plural = 'plural';
+
+    it("should return plural string if 'n' is 0", function() {
+      expect(utils.ngettext(0, singular, plural), 'to be', plural);
+    });
+
+    it("should return singular string if 'n' is 1", function() {
+      expect(utils.ngettext(1, singular, plural), 'to be', singular);
+    });
+
+    it("should return plural string if 'n' is greater than 1", function() {
+      var arr = ['aaa', 'bbb'];
+      expect(utils.ngettext(arr.length, singular, plural), 'to be', plural);
+    });
+
+    it("should return undefined if 'n' is not a non-negative integer", function() {
+      expect(utils.ngettext('', singular, plural), 'to be undefined');
+      expect(utils.ngettext(-1, singular, plural), 'to be undefined');
+      expect(utils.ngettext(true, singular, plural), 'to be undefined');
+      expect(utils.ngettext({}, singular, plural), 'to be undefined');
+    });
+  });
+
+  describe('createMap', function() {
+    it('should return an object with a null prototype', function() {
+      expect(Object.getPrototypeOf(utils.createMap()), 'to be', null);
+    });
+
+    it('should add props to the object', function() {
+      expect(utils.createMap({foo: 'bar'}), 'to exhaustively satisfy', {
+        foo: 'bar'
+      });
+    });
+
+    it('should add props from all object parameters to the object', function() {
+      expect(
+        utils.createMap({foo: 'bar'}, {bar: 'baz'}),
+        'to exhaustively satisfy',
+        {foo: 'bar', bar: 'baz'}
+      );
     });
   });
 });
